@@ -34,14 +34,14 @@ ScreenManager::ScreenManager()
    std::memcpy(static_cast<void*>(&miniCanvas1), lvCanvas, sizeof(lv_canvas_t));
    miniCanvas1.canvasBuffer = image_buffer;
    lv_canvas_set_buffer(reinterpret_cast<lv_obj_t*>(&miniCanvas1), miniCanvas1.canvasBuffer, SCREEN_WIDTH,
-                        SCREEN_HEIGHT / 2, LV_IMG_CF_TRUE_COLOR);
+                        SCREEN_HEIGHT / 2, LV_COLOR_FORMAT_RGB565);
    miniCanvas1.img.obj.coords = lv_area_t{0, 0, 319, 85};
 
    lvCanvas = reinterpret_cast<lv_canvas_t*>(lv_canvas_create(lv_scr_act()));
    std::memcpy(static_cast<void*>(&miniCanvas2), lvCanvas, sizeof(lv_canvas_t));
    miniCanvas2.canvasBuffer = &image_buffer[SCREEN_WIDTH * (SCREEN_HEIGHT / 2) * 2];
    lv_canvas_set_buffer(reinterpret_cast<lv_obj_t*>(&miniCanvas2), miniCanvas2.canvasBuffer, SCREEN_WIDTH,
-                        SCREEN_HEIGHT / 2, LV_IMG_CF_TRUE_COLOR);
+                        SCREEN_HEIGHT / 2, LV_COLOR_FORMAT_RGB565);
    miniCanvas2.img.obj.coords = lv_area_t{0, 86, 319, 171};
 
    // Initialize display descriptor
@@ -53,6 +53,7 @@ ScreenManager::ScreenManager()
 
 bool ScreenManager::tick()
 {
+   // LOG_INF("tick!");
    if (currentScreen != nullptr)
    {
       return currentScreen->tick();
@@ -63,6 +64,7 @@ bool ScreenManager::tick()
 
 void ScreenManager::draw(MiniCanvas* canvas)
 {
+      // LOG_INF("draw!");
    if (currentScreen != nullptr)
    {
       renderEngine->draw(*currentScreen, canvas);
@@ -88,16 +90,17 @@ K_TIMER_DEFINE(displayTimer, displayRefresh, NULL);
 
 void ScreenManager::loop()
 {
-   k_timer_start(&displayTimer, K_MSEC(33), K_MSEC(33));
+   k_timer_start(&displayTimer, K_MSEC(30), K_MSEC(30));
 
    while (1)
    {
       // Wait here until we've been resumed
       while (!running){
-         k_yield();
+         k_sleep(K_MSEC(1));
       }
 
       k_sem_take(&displayRefreshSema, K_FOREVER);
+
 
       // TODO RACE CONDITION!! screen changing is not thread safe
       if (tick() || screenChanged){
@@ -129,4 +132,4 @@ void ScreenManager::flushLoop()
    }
 }
 
-K_THREAD_DEFINE(flushing_thread, 2048, ScreenManager::flushLoop, NULL, NULL, NULL, 3, 0, 0);
+K_THREAD_DEFINE(flushing_thread, 4048, ScreenManager::flushLoop, NULL, NULL, NULL, 3, 0, 0);

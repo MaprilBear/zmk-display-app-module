@@ -1,0 +1,46 @@
+
+#include <zephyr/dt-bindings/mipi_dbi/mipi_dbi.h>
+
+/ {
+	chosen {
+		zephyr,display = &st7789v_tft;
+	};
+
+	mipi_dbi {
+		compatible = "zephyr,mipi-dbi-spi";
+		spi-dev = <&spi3>;
+		dc-gpios = <&gpio0 2 GPIO_ACTIVE_HIGH>;
+		clock-frequency = <DT_FREQ_M(32)>;
+		write-only;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+
+		st7789v_tft: st7789v_tft@1 {
+			compatible = "sitronix,st7789v";
+			status = "okay";
+			reg = <1>;
+			mipi-max-frequency = <DT_FREQ_M(32)>;
+			width = <320>;
+			height = <172>;
+			x-offset = <0>;
+			y-offset = <34>;
+			vcom = <0x19>;
+			gctrl = <0x35>;
+			vrhs = <0x12>;
+			vdvs = <0x20>;
+			mdac = <0xA0>;
+			gamma = <0x01>;
+			colmod = <0x05>;
+			lcm = <0x2C>;
+			porch-param = [0c 0c 00 33 33];
+			cmd2en-param = [5A 69 02 01];
+			pwctrl1-param = [A4 A1];
+			pvgam-param = [D0 04 0D 11 13 2B 3F 54 4C 18 0D 0B 1F 23];
+			nvgam-param = [D0 04 0C 11 13 2C 3F 44 51 2F 1F 1F 20 23];
+			ram-param = [00 F0];
+			rgb-param = [CD 08 14];
+			mipi-mode = "MIPI_DBI_MODE_SPI_4WIRE";
+		};
+	};
+};

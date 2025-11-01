@@ -163,7 +163,7 @@ int display_thread(void)
    return 0;
 }
 
-K_THREAD_DEFINE(dsp_thread, 4096, display_thread, NULL, NULL, NULL, 3, 0, 0);
+K_THREAD_DEFINE(dsp_thread, 8192, display_thread, NULL, NULL, NULL, 3, 0, 0);
 
 // Hook into ZMK's activity event to pause the display when we enter idle
 // Eventually this would also shutoff the backlight, but right now the keypad doesn't have backlight controls :)
@@ -172,14 +172,15 @@ K_THREAD_DEFINE(dsp_thread, 4096, display_thread, NULL, NULL, NULL, 3, 0, 0);
 static int display_activity_listener(const zmk_event_t* eh)
 {
    auto stateChange = reinterpret_cast<const zmk_activity_state_changed_event*>(eh);
+   LOG_DBG("Acitivty State: %d", stateChange->data.state);
    switch (stateChange->data.state)
    {
       case ZMK_ACTIVITY_ACTIVE:
-         ScreenManager::getScreenManager().setScreen(mainScreen);
+         // ScreenManager::getScreenManager().setScreen(mainScreen);
          break;
       case ZMK_ACTIVITY_IDLE:
       case ZMK_ACTIVITY_SLEEP:
-         ScreenManager::getScreenManager().setScreen(idleScreen);
+         // ScreenManager::getScreenManager().setScreen(idleScreen);
          break;
    }
    return 0;

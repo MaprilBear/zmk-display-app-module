@@ -1,7 +1,7 @@
 #include "slider.hpp"
 #include "mini_canvas.hpp"
 #include "misc/lv_area.h"
-#include "widgets/lv_canvas.h"
+#include <lvgl.h>
 #include "zephyr/logging/log.h"
 #include "utils.hpp"
 
@@ -25,6 +25,9 @@ bool Slider::tick()
 
 void Slider::draw(MiniCanvas* canvas)
 {
+   lv_layer_t layer;
+   lv_canvas_init_layer(reinterpret_cast<lv_obj_t*>(canvas), &layer);
+
    lv_area_t adjustedCoords = coords - canvas->img.obj.coords;
    lv_coord_t boundWidth = coords.x2 - coords.x1;
    lv_coord_t boundHeight = coords.y2 - coords.y1;
@@ -33,8 +36,7 @@ void Slider::draw(MiniCanvas* canvas)
    LOG_PRINTK("W: %d\nH: %d\n", boundWidth, boundHeight);
 
    // Draw a bounding box the size of the coords
-   lv_canvas_draw_rect(reinterpret_cast<lv_obj_t*>(canvas), adjustedCoords.x1, adjustedCoords.y1,
-                       boundWidth, boundHeight, &boundingRectDesc);
+   lv_draw_rect(&layer, &boundingRectDesc, &adjustedCoords);
 
    // Calculate the percentage that should be filled
    std::int32_t range = setting.getMax() - setting.getMin();
@@ -44,6 +46,8 @@ void Slider::draw(MiniCanvas* canvas)
    LOG_PRINTK("Range: %d\n Percent: %d\n Slider Width: %d\n", range, percent, sliderWidth);
 
    // Draw the slider
-   lv_canvas_draw_rect(reinterpret_cast<lv_obj_t*>(canvas), adjustedCoords.x1, adjustedCoords.y1,
-                       sliderWidth, boundHeight, &slideRectDesc);
+   lv_area_t rectCoords{adjustedCoords.x1, adjustedCoords.y1, adjustedCoords.x1 + sliderWidth, adjustedCoords.y2};
+   lv_draw_rect(&layer, &slideRectDesc, &rectCoords);
+
+   lv_canvas_finish_layer(reinterpret_cast<lv_obj_t*>(canvas), &layer);
 }

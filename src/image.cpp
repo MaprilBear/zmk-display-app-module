@@ -92,6 +92,7 @@ void Image::draw(MiniCanvas* canvas)
       lv_fs_seek(&file, filePos, LV_FS_SEEK_SET);
 
       std::uint32_t read_bytes = 0;
+      // LOG_INF("reading");
       lv_fs_read(&file, canvas->canvasBuffer, croppedSize, &read_bytes);
       if (read_bytes != croppedSize)
       {

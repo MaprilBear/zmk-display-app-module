@@ -6,7 +6,7 @@
 
 #include "misc/lv_color.h"
 #include "screen.hpp"
-#include "widgets/lv_canvas.h"
+#include "widgets/canvas/lv_canvas.h"
 
 LOG_MODULE_DECLARE(display_app);
 

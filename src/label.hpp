@@ -41,8 +41,12 @@ class Label : public CanvasObject
 
    void draw(MiniCanvas* canvas) override
    {
-      lv_canvas_draw_text(reinterpret_cast<lv_obj_t*>(canvas), coords.x1 - canvas->img.obj.coords.x1,
-                          coords.y1 - canvas->img.obj.coords.y1, 1000, &labelDesc, text.c_str());
+      lv_layer_t layer;
+      lv_canvas_init_layer(reinterpret_cast<lv_obj_t*>(canvas), &layer);
+      labelDesc.text = text.c_str();
+      lv_area_t textCoords{coords.x1 - canvas->img.obj.coords.x1, coords.y1 - canvas->img.obj.coords.y1, coords.x1 - canvas->img.obj.coords.x1 + 200, coords.y1 - canvas->img.obj.coords.y1 + 20};
+      lv_draw_label(&layer, &labelDesc, &textCoords);
+      lv_canvas_finish_layer(reinterpret_cast<lv_obj_t*>(canvas), &layer);
    }
 
    Label(lv_point_t coords) : CanvasObject(lv_area_t{coords.x, coords.y, 0, 0})
