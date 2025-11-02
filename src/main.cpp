@@ -22,6 +22,7 @@
 #include "screen_manager.hpp"
 #include "setting.hpp"
 #include "slider.hpp"
+#include "utils.hpp"
 
 #include <dt-bindings/app_keys.h>
 
@@ -137,15 +138,17 @@ int display_thread(void)
                                        textDesc.color = lv_color_black();
                                        textDesc.font = &lv_font_unscii_8;
 
-                                       hoveredTextDesc.color = lv_color_white();
+                                       hoveredTextDesc.color = lv_color_black();
                                        hoveredTextDesc.font = &lv_font_unscii_8;
 
-                                       hoveredBackgroundDesc.bg_color = lv_color_hex(0x89CFF0);
+                                       hoveredBackgroundDesc.bg_opa = LV_OPA_0;
+                                       hoveredBackgroundDesc.outline_color = lv_color_hex(0x0096FF);
+                                       hoveredBackgroundDesc.outline_width = 3;
                                    });
 
    auto mySlider = new Slider(lv_area_t{20, 20, 160, 40}, keyBrightnessSetting);
    mySlider->setDesc([](lv_draw_rect_dsc_t& boundingDesc, lv_draw_rect_dsc_t& slideDesc){
-      boundingDesc.bg_color = lv_color_hex(0x888888); // Gray
+      boundingDesc.bg_color = lv_color_hex(0x808080);
 
       boundingDesc.outline_color = lv_color_black();
       boundingDesc.outline_width = 3;

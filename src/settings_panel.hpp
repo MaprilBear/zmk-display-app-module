@@ -14,7 +14,13 @@ struct SettingWithCanvasObject
    CanvasObject* canvasObject;
 };
 
-lv_area_t operator-(lv_area_t const& coord1, lv_area_t const& coord2);
+lv_area_t operator-(lv_area_t const& coord1, lv_area_t const& coord2)
+{
+   return lv_area_t
+   {
+      coord1.x1 - coord2.x1, coord1.y1 - coord2.y1, coord1.x2 - coord2.x2, coord1.y2 - coord2.y2,
+   };
+}
 
 
 class SettingsPanel : public CanvasObject
@@ -66,10 +72,10 @@ class SettingsPanel : public CanvasObject
       return retVal;
    }
 
+
    void draw(MiniCanvas* canvas) override
    {
-      lv_layer_t layer;
-      lv_canvas_init_layer(reinterpret_cast<lv_obj_t*>(canvas), &layer);
+
       // Draw all settings in a vertical list, placing the hovered one in a "selected" color and invert text color
       for (int i = 0; i < settings.size(); i++)
       {
@@ -78,6 +84,8 @@ class SettingsPanel : public CanvasObject
          settings[i].canvasObject->setPosition(
              lv_point_t{adjustedCoords.x1 + 150, static_cast<lv_coord_t>(adjustedCoords.y1 + (i * 30))});
 
+         lv_layer_t layer;
+         lv_canvas_init_layer(reinterpret_cast<lv_obj_t*>(canvas), &layer);
          // Draw background first
          if (i == hoveredSettingIndex)
          {
@@ -91,10 +99,10 @@ class SettingsPanel : public CanvasObject
          dsc.text = settings[i].setting->getName().c_str();
          lv_draw_label(&layer, &dsc, &textCoords);
 
+         lv_canvas_finish_layer(reinterpret_cast<lv_obj_t*>(canvas), &layer);
+
          // Draw setting widget
          settings[i].canvasObject->draw(canvas);
       }
-
-      lv_canvas_finish_layer(reinterpret_cast<lv_obj_t*>(canvas), &layer);
    }
 };
