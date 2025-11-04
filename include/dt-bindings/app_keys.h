@@ -8,3 +8,5 @@
 
 #define APP_RGB_BRI 0
 #define APP_RGB_BRD 1
+#define APP_BLE 2
+#define APP_USB 3

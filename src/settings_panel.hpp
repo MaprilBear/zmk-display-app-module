@@ -6,6 +6,8 @@
 #include "setting.hpp"
 #include "utils.hpp"
 #include <algorithm>
+#include "setting.hpp"
+#include "zephyr/logging/log.h"
 #include <vector>
 
 struct SettingWithCanvasObject
@@ -14,24 +16,19 @@ struct SettingWithCanvasObject
    CanvasObject* canvasObject;
 };
 
-lv_area_t operator-(lv_area_t const& coord1, lv_area_t const& coord2)
-{
-   return lv_area_t
-   {
-      coord1.x1 - coord2.x1, coord1.y1 - coord2.y1, coord1.x2 - coord2.x2, coord1.y2 - coord2.y2,
-   };
-}
-
-
 class SettingsPanel : public CanvasObject
 {
    private:
    lv_draw_rect_dsc_t boundingRectDesc;
    std::vector<SettingWithCanvasObject> settings;
-   std::uint32_t hoveredSettingIndex;
+   std::uint32_t hoveredSettingIndex = 0;
    lv_draw_label_dsc_t textDesc{};
    lv_draw_label_dsc_t hoveredTextDesc{};
    lv_draw_rect_dsc_t hoveredBackgroundDesc{};
+   lv_draw_rect_dsc_t selectedBackgroundDesc{};
+   lv_draw_label_dsc_t selectedTextDesc{};
+   bool selected = false;
+   bool updated = false;
 
    public:
    SettingsPanel(lv_area_t coords) : CanvasObject(coords), settings{}, hoveredSettingIndex(0)
@@ -39,70 +36,29 @@ class SettingsPanel : public CanvasObject
       lv_draw_label_dsc_init(&textDesc);
       lv_draw_label_dsc_init(&hoveredTextDesc);
       lv_draw_rect_dsc_init(&hoveredBackgroundDesc);
+      lv_draw_rect_dsc_init(&selectedBackgroundDesc);
+      lv_draw_label_dsc_init(&selectedTextDesc);
    }
 
-   void setDesc(std::function<void(lv_draw_label_dsc_t& textDesc, lv_draw_label_dsc_t& hoveredTextDesc,
-                                   lv_draw_rect_dsc_t& hoveredBackgroundDesc)> const& callback)
-   {
-      callback(textDesc, hoveredTextDesc, hoveredBackgroundDesc);
-   }
+   void setDesc(std::function<void(
+        lv_draw_label_dsc_t &textDesc, lv_draw_label_dsc_t &hoveredTextDesc,
+        lv_draw_rect_dsc_t &hoveredBackgroundDesc, lv_draw_rect_dsc_t &selectedBackgroundDesc, lv_draw_label_dsc_t &selectedTextDesc)> const &callback);
 
-   void addSetting(Setting* setting, CanvasObject* canvasObject)
-   {
-      settings.emplace_back(SettingWithCanvasObject{setting, canvasObject});
-   }
+   void addSetting(Setting* setting, CanvasObject* canvasObject);
 
-   void hoverNext()
-   {
-      hoveredSettingIndex = Utils::clamp<std::uint32_t>(hoveredSettingIndex++, settings.size(), 0);
-   }
+   void action(SettingAction action);
 
-   void hoverPrev()
-   {
-      hoveredSettingIndex = Utils::clamp<std::uint32_t>(hoveredSettingIndex--, settings.size(), 0);
-   }
+   bool hasSelection();
 
-   bool tick() override
-   {
-      bool retVal = false;
-      for (auto& it : settings)
-      {
-         retVal |= it.canvasObject->tick();
-      }
-      return retVal;
-   }
+   void select();
+   void deselect();
+
+   void hoverNext();
+
+   void hoverPrev();
+
+   bool tick() override;
 
 
-   void draw(MiniCanvas* canvas) override
-   {
-
-      // Draw all settings in a vertical list, placing the hovered one in a "selected" color and invert text color
-      for (int i = 0; i < settings.size(); i++)
-      {
-         lv_area_t adjustedCoords = coords - canvas->img.obj.coords;
-
-         settings[i].canvasObject->setPosition(
-             lv_point_t{adjustedCoords.x1 + 150, static_cast<lv_coord_t>(adjustedCoords.y1 + (i * 30))});
-
-         lv_layer_t layer;
-         lv_canvas_init_layer(reinterpret_cast<lv_obj_t*>(canvas), &layer);
-         // Draw background first
-         if (i == hoveredSettingIndex)
-         {
-            lv_area_t rectCoords{adjustedCoords.x1, adjustedCoords.y1, adjustedCoords.x1 + 130, adjustedCoords.y1 + 20};
-            lv_draw_rect(&layer,&hoveredBackgroundDesc, &rectCoords);
-         }
-
-         // Draw text
-         lv_area_t textCoords{ adjustedCoords.x1 + 5, static_cast<lv_coord_t>(adjustedCoords.y1 + 5 + (i * 30)), adjustedCoords.x1 + 200, static_cast<lv_coord_t>(adjustedCoords.y1 + 5 + (i * 30) + 30)};
-         lv_draw_label_dsc_t& dsc = i == hoveredSettingIndex ? hoveredTextDesc : textDesc;
-         dsc.text = settings[i].setting->getName().c_str();
-         lv_draw_label(&layer, &dsc, &textCoords);
-
-         lv_canvas_finish_layer(reinterpret_cast<lv_obj_t*>(canvas), &layer);
-
-         // Draw setting widget
-         settings[i].canvasObject->draw(canvas);
-      }
-   }
+   void draw(MiniCanvas* canvas) override;
 };

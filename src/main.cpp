@@ -13,16 +13,18 @@
 #include <iomanip>
 
 #include "animated_image.hpp"
+#include "checkbox.hpp"
 #include "draw/lv_draw_label.h"
-#include "settings_panel.hpp"
 #include "label.hpp"
 #include "misc/lv_area.h"
 #include "misc/lv_color.h"
 #include "screen.hpp"
 #include "screen_manager.hpp"
 #include "setting.hpp"
+#include "settings_panel.hpp"
 #include "slider.hpp"
 #include "utils.hpp"
+#include "zmk/endpoints_types.h"
 
 #include <dt-bindings/app_keys.h>
 
@@ -34,200 +36,246 @@
 #include <zmk/behavior.h>
 #include <zmk/events/activity_state_changed.h>
 
-LOG_MODULE_REGISTER(display_app);
+LOG_MODULE_REGISTER(display_app, CONFIG_ZMK_LOG_LEVEL);
 
 // Forward Declarations
 extern "C" void invokeBinding(int num);
 
 K_SEM_DEFINE(flushStartSema, 0, 1);
 
-Screen* mainScreen;
-Screen* settingsScreen;
-Screen* idleScreen;
+Screen *mainScreen;
+Screen *settingsScreen;
+Screen *idleScreen;
 
-SliderSetting keyBrightnessSetting("Key Brightness", CONFIG_ZMK_RGB_UNDERGLOW_BRT_START, CONFIG_ZMK_RGB_UNDERGLOW_BRT_MAX,
-                                   CONFIG_ZMK_RGB_UNDERGLOW_BRT_MIN,
-                                   [](std::int32_t delta)
-                                   {
-                                       std::int32_t ticks = std::abs(delta) / CONFIG_ZMK_RGB_UNDERGLOW_BRT_STEP;
-                                       for (int i = 0; i < ticks; i++)
-                                       {
-                                          invokeBinding(delta > 0 ? APP_RGB_BRI : APP_RGB_BRD);
-                                       }
-                                   });
+SliderSetting keyBrightnessSetting(
+    "Key Brightness", CONFIG_ZMK_RGB_UNDERGLOW_BRT_START / CONFIG_ZMK_RGB_UNDERGLOW_BRT_STEP,
+    CONFIG_ZMK_RGB_UNDERGLOW_BRT_MAX / CONFIG_ZMK_RGB_UNDERGLOW_BRT_STEP, CONFIG_ZMK_RGB_UNDERGLOW_BRT_MIN / CONFIG_ZMK_RGB_UNDERGLOW_BRT_STEP,
+    [](std::int32_t delta) {
+      std::int32_t ticks = std::abs(delta);
+      for (int i = 0; i < ticks; i++) {
+        invokeBinding(delta > 0 ? APP_RGB_BRI : APP_RGB_BRD);
+      }
+    });
 
-ToggleSetting myToggleSetting("mmm toggle", true);
+SettingsPanel* settingsPanel;
 
-int display_thread(void)
-{
-   const struct device* display_dev;
+extern "C" struct zmk_endpoint_instance zmk_endpoints_selected(void);
 
-   k_sleep(K_MSEC(1000));
+int display_thread(void) {
+  const struct device *display_dev;
 
-   display_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
-   if (!device_is_ready(display_dev))
-   {
-      LOG_ERR("Device not ready, aborting test");
-      return 0;
-   }
+  k_sleep(K_MSEC(1000));
 
-   k_sleep(K_MSEC(1000)); // let the flash disk settle
+  display_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
+  if (!device_is_ready(display_dev)) {
+    LOG_ERR("Device not ready, aborting test");
+    return 0;
+  }
 
-   display_blanking_off(display_dev);
+  k_sleep(K_MSEC(1000)); // let the flash disk settle
 
-   ScreenManager& screenManager = ScreenManager::getScreenManager();
+  display_blanking_off(display_dev);
 
-   idleScreen = new Screen();
-   idleScreen->hasBackground = true;
-   idleScreen->backgroundColor = lv_color_black();
+  ScreenManager &screenManager = ScreenManager::getScreenManager();
 
-   // setup a simple screen with an animation and FPS label
-   mainScreen = new Screen();
-   mainScreen->elements.emplace_back(new AnimatedImage(lv_area_t{0, 0, 319, 171}, "/NAND:/frame_", ".bin", 11));
+  idleScreen = new Screen();
+  idleScreen->hasBackground = true;
+  idleScreen->backgroundColor = lv_color_black();
 
-   auto fpsLabel = new Label(lv_point_t{260, 160});
-   fpsLabel->setDesc(
-       [](lv_draw_label_dsc_t& desc)
-       {
-          lv_draw_label_dsc_init(&desc);
-          desc.font = &lv_font_unscii_8;
-          desc.color = lv_color_white();
-       });
-   fpsLabel->setTickCallback(
-       [](lv_draw_label_dsc_t& desc, std::string& text)
-       {
-          static std::uint32_t last_frame_time = 0;
-          static std::uint32_t fps = 0;
+  // setup a simple screen with an animation and FPS label
+  mainScreen = new Screen();
+  mainScreen->elements.emplace_back(new AnimatedImage(
+      lv_area_t{0, 0, 319, 171}, "/NAND:/frame_", ".bin", 11));
 
-          uint32_t frame_time = k_cycle_get_32();
-          std::uint32_t newFps = 1000 / k_cyc_to_ms_floor32(frame_time - last_frame_time);
-          last_frame_time = frame_time;
+  auto fpsLabel = new Label(lv_point_t{260, 160});
+  fpsLabel->setDesc([](lv_draw_label_dsc_t &desc) {
+    lv_draw_label_dsc_init(&desc);
+    desc.font = &lv_font_unscii_8;
+    desc.color = lv_color_white();
+  });
+  fpsLabel->setTickCallback([](lv_draw_label_dsc_t &desc, std::string &text) {
+    static std::uint32_t last_frame_time = 0;
+    static std::uint32_t fps = 0;
 
-          std::stringstream stream{};
-          stream << std::setfill('0') << std::setw(2);
-          stream << std::to_string(newFps) << " FPS\0";
+    uint32_t frame_time = k_cycle_get_32();
+    std::uint32_t newFps =
+        1000 / k_cyc_to_ms_floor32(frame_time - last_frame_time);
+    last_frame_time = frame_time;
 
-          text = stream.str();
+    std::stringstream stream{};
+    stream << std::setfill('0') << std::setw(2);
+    stream << std::to_string(newFps) << " FPS\0";
 
-          bool ret = (newFps != fps);
-          fps = newFps;
-          return ret;
-       });
-   mainScreen->elements.emplace_back(fpsLabel);
+    text = stream.str();
 
-   // setup settings screen for later
-   settingsScreen = new Screen();
-   settingsScreen->hasBackground = true;
-   settingsScreen->backgroundColor = lv_color_white();
+    bool ret = (newFps != fps);
+    fps = newFps;
+    return ret;
+  });
+  mainScreen->elements.emplace_back(fpsLabel);
 
-   auto myLabel = new Label(lv_point_t{100, 100});
-   myLabel->setText("Hello!");
-   myLabel->setDesc(
-       [](lv_draw_label_dsc_t& desc)
-       {
-          desc.font = &lv_font_unscii_16;
-          desc.color = lv_color_black();
-       });
-   settingsScreen->elements.emplace_back(myLabel);
+  // setup settings screen for later
+  settingsScreen = new Screen();
+  settingsScreen->hasBackground = true;
+  settingsScreen->backgroundColor = lv_color_white();
 
+  auto myLabel = new Label(lv_point_t{100, 100});
+  myLabel->setText("Hello!");
+  myLabel->setDesc([](lv_draw_label_dsc_t &desc) {
+    desc.font = &lv_font_unscii_16;
+    desc.color = lv_color_black();
+  });
+  settingsScreen->elements.emplace_back(myLabel);
 
-   auto settingsPanel = new SettingsPanel(lv_area_t{10,10,0,0});
-   settingsPanel->setDesc([](lv_draw_label_dsc_t& textDesc, lv_draw_label_dsc_t& hoveredTextDesc,
-                                   lv_draw_rect_dsc_t& hoveredBackgroundDesc)
-                                   {
-                                       textDesc.color = lv_color_black();
-                                       textDesc.font = &lv_font_unscii_8;
+  settingsPanel = new SettingsPanel(lv_area_t{10, 10, 0, 0});
+  settingsPanel->setDesc([](lv_draw_label_dsc_t &textDesc,
+                            lv_draw_label_dsc_t &hoveredTextDesc,
+                            lv_draw_rect_dsc_t &hoveredBackgroundDesc,
+                            lv_draw_rect_dsc_t &selectedBackgroundDesc,
+                            lv_draw_label_dsc_t &selectedTextDesc) {
+    textDesc.color = lv_color_black();
+    textDesc.font = &lv_font_unscii_8;
 
-                                       hoveredTextDesc.color = lv_color_black();
-                                       hoveredTextDesc.font = &lv_font_unscii_8;
+    hoveredTextDesc.color = lv_color_black();
+    hoveredTextDesc.font = &lv_font_unscii_8;
 
-                                       hoveredBackgroundDesc.bg_opa = LV_OPA_0;
-                                       hoveredBackgroundDesc.outline_color = lv_color_hex(0x0096FF);
-                                       hoveredBackgroundDesc.outline_width = 3;
-                                   });
+    hoveredBackgroundDesc.bg_opa = LV_OPA_0;
+    hoveredBackgroundDesc.outline_color = lv_color_hex(0x0096FF);
+    hoveredBackgroundDesc.outline_width = 3;
 
-   auto mySlider = new Slider(lv_area_t{20, 20, 160, 40}, keyBrightnessSetting);
-   mySlider->setDesc([](lv_draw_rect_dsc_t& boundingDesc, lv_draw_rect_dsc_t& slideDesc){
-      boundingDesc.bg_color = lv_color_hex(0x808080);
+    selectedBackgroundDesc.bg_color = lv_color_hex(0x0000FF);
 
-      boundingDesc.outline_color = lv_color_black();
-      boundingDesc.outline_width = 3;
+    selectedTextDesc.color = lv_color_white();
+  });
 
-      slideDesc.bg_color = lv_color_hex(0x0096FF);
-   });
-   settingsPanel->addSetting(&keyBrightnessSetting, mySlider);
-   settingsPanel->addSetting(&keyBrightnessSetting, mySlider);
-   settingsScreen->elements.emplace_back(settingsPanel);
+  auto mySlider = new Slider(lv_area_t{20, 20, 160, 40}, keyBrightnessSetting);
+  mySlider->setDesc(
+      [](lv_draw_rect_dsc_t &boundingDesc, lv_draw_rect_dsc_t &slideDesc) {
+        boundingDesc.bg_color = lv_color_hex(0x808080);
 
-   screenManager.setScreen(mainScreen);
+        boundingDesc.outline_color = lv_color_black();
+        boundingDesc.outline_width = 3;
 
-   screenManager.loop();
+        slideDesc.bg_color = lv_color_hex(0x0096FF);
+      });
+  settingsPanel->addSetting(&keyBrightnessSetting, mySlider);
 
-   return 0;
+  auto bluetoothToggle = new ToggleSetting(
+      "Bluetooth Enable",
+      zmk_endpoints_selected().transport == zmk_transport::ZMK_TRANSPORT_BLE,
+      [](bool newVal) { invokeBinding(newVal ? APP_BLE : APP_USB); });
+  auto bluetoothCheckbox =
+      new Checkbox(lv_area_t{20, 20, 40, 40}, *bluetoothToggle);
+  bluetoothCheckbox->setDesc(
+      [](lv_draw_rect_dsc_t &boundingDesc, lv_draw_rect_dsc_t &onDesc) {
+        boundingDesc.bg_opa = LV_OPA_0;
+        boundingDesc.outline_color = lv_color_hex(0xA0A0A0);
+        boundingDesc.outline_width = 4;
+
+        onDesc.bg_color = lv_color_hex(0x0000FF);
+      });
+  settingsPanel->addSetting(bluetoothToggle, bluetoothCheckbox);
+  settingsScreen->elements.emplace_back(settingsPanel);
+
+  screenManager.setScreen(mainScreen);
+
+  screenManager.loop();
+
+  return 0;
 }
 
 K_THREAD_DEFINE(dsp_thread, 8192, display_thread, NULL, NULL, NULL, 3, 0, 0);
 
 // Hook into ZMK's activity event to pause the display when we enter idle
-// Eventually this would also shutoff the backlight, but right now the keypad doesn't have backlight controls :)
-// This is implemented incorrectly on purpose. Linker errors occur with as_zmk_activity_state_changed() not being
+// Eventually this would also shutoff the backlight, but right now the keypad
+// doesn't have backlight controls :) This is implemented incorrectly on
+// purpose. Linker errors occur with as_zmk_activity_state_changed() not being
 // defined for some reason.
-static int display_activity_listener(const zmk_event_t* eh)
-{
-   auto stateChange = reinterpret_cast<const zmk_activity_state_changed_event*>(eh);
-   LOG_DBG("Acitivty State: %d", stateChange->data.state);
-   switch (stateChange->data.state)
-   {
-      case ZMK_ACTIVITY_ACTIVE:
-         // ScreenManager::getScreenManager().setScreen(mainScreen);
-         break;
-      case ZMK_ACTIVITY_IDLE:
-      case ZMK_ACTIVITY_SLEEP:
-         // ScreenManager::getScreenManager().setScreen(idleScreen);
-         break;
-   }
-   return 0;
+static int display_activity_listener(const zmk_event_t *eh) {
+  auto stateChange =
+      reinterpret_cast<const zmk_activity_state_changed_event *>(eh);
+  LOG_DBG("Acitivty State: %d", stateChange->data.state);
+  switch (stateChange->data.state) {
+  case ZMK_ACTIVITY_ACTIVE:
+    // ScreenManager::getScreenManager().setScreen(mainScreen);
+    break;
+  case ZMK_ACTIVITY_IDLE:
+  case ZMK_ACTIVITY_SLEEP:
+    // ScreenManager::getScreenManager().setScreen(idleScreen);
+    break;
+  }
+  return 0;
 }
 
 ZMK_LISTENER(activity, display_activity_listener);
 ZMK_SUBSCRIPTION(activity, zmk_activity_state_changed);
 
 // not thread safe :)
-extern "C" void switchScreensC(int screenNum)
-{
-   LOG_INF("I'm in C++ land!");
+extern "C" void switchScreensC(int screenNum) {
+  LOG_INF("I'm in C++ land!");
 
-   auto& screenManager = ScreenManager::getScreenManager();
+  auto &screenManager = ScreenManager::getScreenManager();
 
-   switch (screenNum)
-   {
-      case 0:
-         screenManager.setScreen(mainScreen);
-         break;
-      case 1:
-         screenManager.setScreen(settingsScreen);
-         break;
-   }
+  switch (screenNum) {
+  case 0:
+    screenManager.setScreen(mainScreen);
+    break;
+  case 1:
+    screenManager.setScreen(settingsScreen);
+    break;
+  }
 }
 
-extern "C" void processKeyPress(int key)
-{
-   auto& screenManager = ScreenManager::getScreenManager();
+extern "C" void processKeyPress(int key) {
+  auto &screenManager = ScreenManager::getScreenManager();
 
-   if (screenManager.getScreen() != settingsScreen)
-   {
-      return;
-   }
+  LOG_DBG("Processing key %d", key);
 
-   switch (key)
-   {
+  if (screenManager.getScreen() != settingsScreen) {
+    LOG_DBG("Not on settings screen");
+    return;
+  }
+
+  if (!settingsPanel->hasSelection()) {
+    LOG_DBG("No selection");
+    switch (key) {
+    case APP_DEC:
+      LOG_DBG("DOWN DOWN DOWN");
+      settingsPanel->hoverNext();
+      break;
+    case APP_INC:
+      LOG_DBG("UP UP UP");
+      settingsPanel->hoverPrev();
+      break;
+    case APP_A:
+      LOG_DBG("SELECT!!!!");
+      settingsPanel->select();
+      break;
+    case APP_B:
+      switchScreensC(0);
+      invokeBinding(APP_MAIN);
+      break;
+    default:
+      LOG_DBG("wth...");
+    }
+  } else {
+    LOG_DBG("Selection available");
+    switch (key) {
       case APP_INC:
-         keyBrightnessSetting.addDelta(CONFIG_ZMK_RGB_UNDERGLOW_BRT_STEP);
-         break;
+        settingsPanel->action(SettingAction::INCREASE);
+        break;
       case APP_DEC:
-         keyBrightnessSetting.addDelta(-CONFIG_ZMK_RGB_UNDERGLOW_BRT_STEP);
-         break;
-   }
+        settingsPanel->action(SettingAction::DECREASE);
+        break;
+      case APP_A:
+        settingsPanel->action(SettingAction::TOGGLE);
+        break;
+      case APP_B:
+        settingsPanel->deselect();
+        break;
+    }
+  }
 }
 
-// K_THREAD_DEFINE(screen_switch_thread, 1024, switchScreens, NULL, NULL, NULL, 2, 0, 0);
+// K_THREAD_DEFINE(screen_switch_thread, 1024, switchScreens, NULL, NULL, NULL,
+// 2, 0, 0);

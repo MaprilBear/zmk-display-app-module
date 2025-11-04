@@ -3,12 +3,13 @@
 
 #include <lvgl.h>
 #include <cstdint>
+#include <algorithm>
 
 namespace Utils
 {
    template <class T> constexpr T clamp(T val, T max, T min)
    {
-      return (val > max) ? max : ((val < min) ? min : val);
+      return std::min(max, std::max(min, val));
    }
 
    inline lv_color16_t color_swap(lv_color16_t color)

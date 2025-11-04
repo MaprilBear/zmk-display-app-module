@@ -5,6 +5,14 @@
 #include <functional>
 #include "utils.hpp"
 #include <string>
+
+enum SettingAction
+{
+   TOGGLE,
+   INCREASE,
+   DECREASE
+};
+
 class Setting
 {
    protected:
@@ -19,6 +27,8 @@ class Setting
    {
       return name;
    }
+
+   virtual void action(SettingAction action) = 0;
 };
 
 class SliderSetting : public Setting
@@ -67,6 +77,19 @@ class SliderSetting : public Setting
    {
       return min;
    }
+
+   void action(SettingAction action) override
+   {
+      switch (action)
+      {
+         case SettingAction::INCREASE:
+            addDelta(1);
+            break;
+         case SettingAction::DECREASE:
+            addDelta(-1);
+            break;
+      }
+   }
 };
 
 class ToggleSetting : public Setting
@@ -76,13 +99,27 @@ class ToggleSetting : public Setting
    std::function<void(bool)> callback;
 
    public:
-   ToggleSetting(std::string name, bool start) : Setting(name), currentToggle(start)
+   ToggleSetting(std::string name, bool start, std::function<void(bool)> callback) : Setting(name), currentToggle(start), callback(callback)
    {
+   }
+
+   bool getValue()
+   {
+      return currentToggle;
    }
 
    void toggle()
    {
       currentToggle = !currentToggle;
       callback(currentToggle);
+   }
+
+   void action(SettingAction action) override
+   {
+      if (action == SettingAction::TOGGLE)
+      {
+         LOG_PRINTK("Toggling!");
+         toggle();
+      }
    }
 };
